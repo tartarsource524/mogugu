@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>사신 모구구의 힘</title>
+    <style>
+        body { margin: 0; background: #000; color: #fff; font-family: 'serif'; overflow: hidden; }
+        
+        /* UI 레이아웃: 의식의 제단 느낌 */
+        #ui { 
+            position: absolute; 
+            top: 20px; 
+            left: 20px; 
+            z-index: 10; 
+            background: rgba(10, 10, 15, 0.85); 
+            padding: 25px; 
+            border-radius: 15px; 
+            border: 1px solid #335577; 
+            width: 280px;
+            box-shadow: 0 0 20px rgba(136, 204, 255, 0.2);
+            animation: ritual-pulse 4s infinite alternate;
+        }
+
+        @keyframes ritual-pulse {
+            from { border-color: #335577; box-shadow: 0 0 10px rgba(136, 204, 255, 0.1); }
+            to { border-color: #88ccff; box-shadow: 0 0 25px rgba(136, 204, 255, 0.4); }
+        }
+
+        h1 { margin: 0 0 15px 0; font-size: 20px; color: #88ccff; text-align: center; text-shadow: 0 0 10px #88ccff; }
+        p { font-size: 13px; color: #ccc; line-height: 1.6; margin: 8px 0; text-align: center; }
+        .highlight { color: #ff5555; font-weight: bold; }
+        
+        /* 파일 입력 스타일링 */
+        input[type="file"] { 
+            margin-top: 20px; 
+            width: 100%; 
+            color: #88ccff;
+            font-size: 12px;
+        }
+        
+        input[type="file"]::file-selector-button {
+            background: #112233;
+            color: #88ccff;
+            border: 1px solid #335577;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            transition: 0.3s;
+        }
+        
+        input[type="file"]::file-selector-button:hover {
+            background: #224466;
+            border-color: #88ccff;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <h1>사신 모구구 강림 의식</h1>
+    <p><span class="highlight">모구구님</span>의<span class="highlight"> 현신</span>의 준비가 되었습니다.</p>
+    <p>필멸자의 형상을 <span class="highlight">제물</span>로 바쳐 사신을 불러내십시오.</p>
+    <input type="file" id="upload" accept="image/*">
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+
+<script>
+    let scene, camera, renderer, particles, magicCircle;
+    const particleCount = 35000; 
+    let positions = new Float32Array(particleCount * 3);
+    let colors = new Float32Array(particleCount * 3);
+    let silhouettePoints = [];
+
+    init();
+
+    function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 10000);
+        camera.position.set(0, 100, 600); // 마법진을 내려다보는 느낌을 위해 살짝 위로 이동
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // 1. 마법진 추가
+        createMagicCircle();
+
+        // 2. 파티클 설정
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        const mat = new THREE.PointsMaterial({ 
+            size: 2.2,
+            vertexColors: true, 
+            transparent: true, 
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending 
+        });
+        
+        particles = new THREE.Points(geo, mat);
+        scene.add(particles);
+
+        // 3. 타겟 실루엣 로드
+        loadTargetSilhouette('target.png');
+
+        animate();
+    }
+
+    // 마법진 생성 함수 (SVG 데이터 사용)
+    function createMagicCircle() {
+        // 마법진 문양을 담은 SVG 이미지 데이터 (Base64)
+        const magicCircleSVG = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+            <g fill="none" stroke="#4488ff" stroke-width="5">
+                <circle cx="256" cy="256" r="250" stroke-opacity="0.8"/>
+                <circle cx="256" cy="256" r="230" stroke-dasharray="10 5" stroke-opacity="0.5"/>
+                <circle cx="256" cy="256" r="180" stroke-opacity="0.6"/>
+                <path d="M256 20 L480 400 L32 400 Z" stroke-opacity="0.7"/>
+                <path d="M256 492 L32 112 L480 112 Z" stroke-opacity="0.7"/>
+                <text x="50%" y="45%" font-family="serif" font-size="20" fill="#4488ff" text-anchor="middle" fill-opacity="0.6">REAPER MOGUGU</text>
+            </g>
+        </svg>`;
+
+        const blob = new Blob([magicCircleSVG], {type: 'image/svg+xml'});
+        const url = URL.createObjectURL(blob);
+        const texture = new THREE.TextureLoader().load(url);
+
+        const circleGeo = new THREE.PlaneGeometry(600, 600);
+        const circleMat = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            opacity: 0.5,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+
+        magicCircle = new THREE.Mesh(circleGeo, circleMat);
+        magicCircle.rotation.x = -Math.PI / 2.2; // 살짝 눕혀서 배치
+        magicCircle.position.y = -200; // 파티클 아래쪽 바닥에 위치
+        scene.add(magicCircle);
+    }
+
+    function loadTargetSilhouette(url) {
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.src = url;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const size = 250; 
+            canvas.width = size; canvas.height = size;
+            
+            ctx.fillStyle = "white";
+            ctx.fillRect(0,0,size,size);
+            ctx.drawImage(img, 0, 0, size, size);
+            
+            const data = ctx.getImageData(0, 0, size, size).data;
+            for (let y = 0; y < size; y++) {
+                for (let x = 0; x < size; x++) {
+                    const idx = (y * size + x) * 4;
+                    if ((data[idx] + data[idx+1] + data[idx+2]) / 3 < 120) {
+                        silhouettePoints.push({
+                            x: (x - size / 2) * 2.8,
+                            y: -(y - size / 2) * 2.8
+                        });
+                    }
+                }
+            }
+            showInitialSilhouette();
+        };
+    }
+
+    function showInitialSilhouette() {
+        const posAttr = particles.geometry.attributes.position;
+        const colAttr = particles.geometry.attributes.color;
+        for (let i = 0; i < particleCount; i++) {
+            const pt = silhouettePoints[i % silhouettePoints.length];
+            posAttr.setXYZ(i, pt.x, pt.y, (Math.random() - 0.5) * 20);
+            colAttr.setXYZ(i, 0.2, 0.4, 0.8); // 초기 푸른 빛
+        }
+        posAttr.needsUpdate = true;
+        colAttr.needsUpdate = true;
+    }
+
+    document.getElementById('upload').addEventListener('change', (e) => {
+        if (!e.target.files.length) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => applyUploadedImage(img);
+        };
+        reader.readAsDataURL(file = e.target.files[0]);
+    });
+
+    function applyUploadedImage(img) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const size = Math.sqrt(particleCount);
+        const w = Math.floor(size), h = Math.floor(size);
+        canvas.width = w; canvas.height = h;
+        ctx.drawImage(img, 0, 0, w, h);
+        
+        const data = ctx.getImageData(0, 0, w, h).data;
+        const posAttr = particles.geometry.attributes.position;
+        const colAttr = particles.geometry.attributes.color;
+
+        gsap.killTweensOf(posAttr.array);
+
+        for (let i = 0; i < particleCount; i++) {
+            const pixelIdx = i * 4;
+            const startX = (i % w - w / 2) * 2.5;
+            const startY = -(Math.floor(i / w) - h / 2) * 2.5;
+            
+            posAttr.setXYZ(i, startX, startY, 100); // 제물을 바칠 때 앞으로 튀어나오는 느낌
+            if (pixelIdx < data.length) {
+                colAttr.setXYZ(i, data[pixelIdx] / 255, data[pixelIdx + 1] / 255, data[pixelIdx + 2] / 255);
+            }
+
+            const targetPoint = silhouettePoints[Math.floor(Math.random() * silhouettePoints.length)];
+            
+            // 8초 동안 서서히 연성됨
+            gsap.to(posAttr.array, {
+                duration: 8.0,
+                delay: 0.5,
+                [i * 3]: targetPoint.x,
+                [i * 3 + 1]: targetPoint.y,
+                [i * 3 + 2]: (Math.random() - 0.5) * 30,
+                ease: "power2.inOut",
+                onUpdate: () => posAttr.needsUpdate = true
+            });
+        }
+        posAttr.needsUpdate = true;
+        colAttr.needsUpdate = true;
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        
+        // 마법진 천천히 회전
+        if (magicCircle) magicCircle.rotation.z += 0.002;
+        
+        // 카메라 미세 움직임 (생동감)
+        const time = Date.now() * 0.0005;
+        camera.position.x = Math.sin(time) * 20;
+        camera.lookAt(0, 0, 0);
+
+        renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>
